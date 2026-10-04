@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String             @id @default(uuid())
+  email            String             @unique
+  name             String?
+  avatar           String?
+  password         String?
+  googleId         String?            @unique
+  senderAccounts   SenderAccount[]
+  emailJobs        EmailJob[]
+  slackIntegration SlackIntegration?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+model SenderAccount {
+  id        String   @id @default(uuid())
+  email     String
+  name      String
+  isDefault Boolean  @default(false)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EmailJob {
+  id           String    @id @default(uuid())
+  bullJobId    String    @unique
+  userId       String?
+  user         User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  from         String
+  to           String
+  subject      String
+  body         String
+  attachments  String?   // JSON encoded attachment info
+  status       String    @default("scheduled") // scheduled, processing, sent, failed, rescheduled
+  scheduledFor DateTime
+  sentAt       DateTime?
+  failedAt     DateTime?
+  errorReason  String?
+  delaySeconds Int       @default(2)
+  hourlyLimit  Int       @default(100)
+  retryCount   Int       @default(0)
+  etherealUrl  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status])
+  @@index([scheduledFor])
+  @@index([from])
+}
+
+model SlackIntegration {
+  id          String   @id @default(uuid())
+  userId      String?  @unique
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  webhookUrl  String?
+  accessToken String?
+  channel     String?
+  teamName    String?
+  isConnected Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
