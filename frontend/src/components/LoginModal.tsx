@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext.js';
 import { apiClient } from '../api/client.js';
 
 export const LoginModal: React.FC = () => {
-  const { loginWithGoogle, loginWithEmail, loginDemo } = useAuth();
+  const { loginWithGoogle, loginWithEmail } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -63,17 +63,11 @@ export const LoginModal: React.FC = () => {
 
       // If Google Client ID is configured in .env, launch real Google One Tap / prompt
       if (googleClientId && (window as any).google?.accounts?.id) {
-        (window as any).google.accounts.id.prompt((notification: any) => {
-          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            // Prompt fallback
-            loginDemo();
-          }
-        });
+        (window as any).google.accounts.id.prompt();
         return;
       }
 
-      // If Google Client ID is not yet entered in .env, provide seamless demo login
-      await loginDemo();
+      setError('Google OAuth Client ID is not configured in .env. Please sign in with your email and password below.');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Google login failed');
     } finally {
@@ -162,17 +156,6 @@ export const LoginModal: React.FC = () => {
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
-
-        {/* Quick Demo Persona Login */}
-        <div className="mt-6 pt-4 border-t border-gray-100 w-full text-center">
-          <button
-            type="button"
-            onClick={loginDemo}
-            className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 hover:underline"
-          >
-            ⚡ One-Click Demo Login as Oliver Brown (Figma)
-          </button>
-        </div>
       </div>
     </div>
   );
