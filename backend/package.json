@@ -2,14 +2,16 @@
   "name": "reachinbox-scheduler-backend",
   "version": "1.0.0",
   "description": "Production-grade Email Scheduler Backend with BullMQ, Redis, PostgreSQL, Elasticsearch & Ethereal",
+  "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:push": "prisma db push"
+    "db:sync": "node scripts/sync-db-provider.js",
+    "prisma:generate": "node scripts/sync-db-provider.js && prisma generate",
+    "prisma:migrate": "node scripts/sync-db-provider.js && prisma migrate dev",
+    "prisma:push": "node scripts/sync-db-provider.js && prisma db push"
   },
   "dependencies": {
     "@bull-board/api": "^6.8.0",

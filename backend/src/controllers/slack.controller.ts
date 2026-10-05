@@ -92,7 +92,7 @@ export class SlackController {
       const nextWindow = new Date();
       nextWindow.setHours(nextWindow.getHours() + 1, 0, 0, 0);
 
-      const sender = req.body.sender || 'oliver.brown@domain.io';
+      const sender = req.body.sender || req.user?.email || 'sender@reachinbox.ai';
       const hourlyLimit = req.body.hourlyLimit || 50;
 
       const sent = await SlackService.sendRateLimitAlert({

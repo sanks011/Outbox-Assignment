@@ -9,6 +9,17 @@ const googleClient = new OAuth2Client(config.google.clientId);
 
 export class AuthController {
   /**
+   * Get Public Auth Configuration (Google Client ID, Slack features)
+   */
+  static getAuthConfig(_req: Request, res: Response) {
+    return res.json({
+      googleClientId: config.google.clientId || null,
+      hasSlackWebhook: Boolean(config.slack.webhookUrl),
+      hasSlackOAuth: Boolean(config.slack.clientId && config.slack.clientSecret),
+    });
+  }
+
+  /**
    * Google OAuth Login / Token Verification
    */
   static async googleLogin(req: Request, res: Response) {
@@ -201,22 +212,34 @@ export class AuthController {
    */
   static async getMe(req: AuthenticatedRequest, res: Response) {
     try {
-      const email = req.user?.email || 'oliver.brown@domain.io';
-      const user = await prisma.user.findUnique({
+      const email = req.user?.email;
+      if (!email) {
+        return res.status(401).json({ error: 'Unauthorized: No email associated with token' });
+      }
+
+      let user = await prisma.user.findUnique({
         where: { email },
         include: { senderAccounts: true, slackIntegration: true },
       });
 
       if (!user) {
-        return res.json({
-          id: 'demo-user-oliver',
-          email: 'oliver.brown@domain.io',
-          name: 'Oliver Brown',
-          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
-          senderAccounts: [
-            { email: 'oliver.brown@domain.io', name: 'Oliver Brown' },
-            { email: 'sender@example.com', name: 'Amanda Clark' },
-          ],
+        user = await prisma.user.create({
+          data: {
+            id: req.user?.id || undefined,
+            email,
+            name: req.user?.name || email.split('@')[0],
+            avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+          },
+          include: { senderAccounts: true, slackIntegration: true },
+        });
+
+        await prisma.senderAccount.create({
+          data: {
+            email,
+            name: user.name || email,
+            isDefault: true,
+            userId: user.id,
+          },
         });
       }
 

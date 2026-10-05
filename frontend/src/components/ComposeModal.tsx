@@ -26,6 +26,8 @@ import { apiClient } from '../api/client.js';
 import { SenderAccount } from '../types/index.js';
 import { SendLaterPopover } from './SendLaterPopover.js';
 
+import { useAuth } from '../context/AuthContext.js';
+
 interface ComposeModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -39,10 +41,15 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const { user } = useAuth();
+
   // Form State
   const [senders, setSenders] = useState<SenderAccount[]>([]);
-  const [selectedSender, setSelectedSender] = useState('oliver.brown@domain.io');
+  const [selectedSender, setSelectedSender] = useState(user?.email || 'sender@reachinbox.ai');
   const [senderDropdownOpen, setSenderDropdownOpen] = useState(false);
+  const [isAddingSender, setIsAddingSender] = useState(false);
+  const [newSenderEmail, setNewSenderEmail] = useState('');
+  const [newSenderName, setNewSenderName] = useState('');
 
   // Recipients
   const [toInput, setToInput] = useState('');
@@ -59,14 +66,8 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
   const [scheduledDate, setScheduledDate] = useState<Date | null>(null);
   const [isSendLaterOpen, setIsSendLaterOpen] = useState(false);
 
-  // Attachments (Sample Tennis Coach images matching Screenshot 5)
-  const [attachments, setAttachments] = useState<any[]>([
-    {
-      filename: 'Tennis_Coach_Profile.png',
-      size: '1.2 MB',
-      url: 'https://images.unsplash.com/photo-1595435934249-5df7ed86e1c0?w=600&auto=format&fit=crop&q=80',
-    },
-  ]);
+  // Attachments
+  const [attachments, setAttachments] = useState<any[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,15 +83,34 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
         const list = await apiClient.getSenders();
         setSenders(list);
         if (list.length > 0) {
-          const defaultSender = list.find((s) => s.isDefault) || list[0];
-          setSelectedSender(defaultSender.email);
+          const matching = list.find((s) => s.email === user?.email) || list.find((s) => s.isDefault) || list[0];
+          setSelectedSender(matching.email);
+        } else if (user?.email) {
+          setSelectedSender(user.email);
         }
       } catch (err) {
         console.error('Failed to load senders:', err);
       }
     }
     loadSenders();
-  }, []);
+  }, [user]);
+
+  const handleAddNewSender = async () => {
+    if (!newSenderEmail.trim() || !newSenderEmail.includes('@')) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    try {
+      const created = await apiClient.addSender(newSenderEmail.trim(), newSenderName.trim());
+      setSenders([created, ...senders]);
+      setSelectedSender(created.email);
+      setIsAddingSender(false);
+      setNewSenderEmail('');
+      setNewSenderName('');
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to add sender');
+    }
+  };
 
   // Add recipient on comma or Enter
   const handleToKeyDown = (e: React.KeyboardEvent) => {
@@ -325,7 +345,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
               </button>
 
               {senderDropdownOpen && (
-                <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-30 min-w-[240px]">
+                <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-30 min-w-[260px]">
                   {senders.map((s, idx) => (
                     <button
                       key={idx}
@@ -340,6 +360,51 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                       <span className="text-[11px] text-gray-400">{s.email}</span>
                     </button>
                   ))}
+
+                  <div className="border-t border-gray-100 p-2 mt-1">
+                    {!isAddingSender ? (
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingSender(true)}
+                        className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
+                      >
+                        + Add another sender email
+                      </button>
+                    ) : (
+                      <div className="space-y-1.5 pt-1">
+                        <input
+                          type="email"
+                          value={newSenderEmail}
+                          onChange={(e) => setNewSenderEmail(e.target.value)}
+                          placeholder="sender@domain.com"
+                          className="w-full px-2 py-1 text-xs border border-gray-200 rounded outline-none"
+                        />
+                        <input
+                          type="text"
+                          value={newSenderName}
+                          onChange={(e) => setNewSenderName(e.target.value)}
+                          placeholder="Display Name (optional)"
+                          className="w-full px-2 py-1 text-xs border border-gray-200 rounded outline-none"
+                        />
+                        <div className="flex gap-2 justify-end pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingSender(false)}
+                            className="px-2 py-0.5 text-[11px] text-gray-500 hover:text-gray-700"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleAddNewSender}
+                            className="px-2.5 py-0.5 bg-emerald-600 text-white rounded text-[11px] font-medium"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

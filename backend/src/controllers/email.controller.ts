@@ -152,27 +152,68 @@ export class EmailController {
   }
 
   /**
-   * Get available sender accounts
+   * Get available sender accounts for the current user and workspace
    */
   static async getSenders(req: AuthenticatedRequest, res: Response) {
     try {
+      const userId = req.user?.id;
       const senders = await prisma.senderAccount.findMany({
+        where: userId ? { OR: [{ userId }, { userId: null }] } : {},
         orderBy: { isDefault: 'desc' },
       });
 
+      // If user has an email and it's not in the list, dynamically include it
+      const userEmail = req.user?.email;
+      if (userEmail && !senders.some((s) => s.email.toLowerCase() === userEmail.toLowerCase())) {
+        senders.unshift({
+          id: 'user-primary',
+          email: userEmail,
+          name: req.user?.name || userEmail.split('@')[0],
+          isDefault: true,
+          userId: userId || null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+
       if (senders.length === 0) {
         return res.json([
-          { email: 'oliver.brown@domain.io', name: 'Oliver Brown', isDefault: true },
-          { email: 'sender@example.com', name: 'Amanda Clark', isDefault: false },
+          { email: userEmail || 'scheduler@reachinbox.ai', name: req.user?.name || 'Default Sender', isDefault: true },
         ]);
       }
 
       return res.json(senders);
     } catch {
+      const userEmail = req.user?.email || 'scheduler@reachinbox.ai';
       return res.json([
-        { email: 'oliver.brown@domain.io', name: 'Oliver Brown', isDefault: true },
-        { email: 'sender@example.com', name: 'Amanda Clark', isDefault: false },
+        { email: userEmail, name: req.user?.name || 'Default Sender', isDefault: true },
       ]);
+    }
+  }
+
+  /**
+   * Add a new sender account dynamically
+   */
+  static async addSender(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { email, name } = req.body;
+      if (!email || !email.includes('@')) {
+        return res.status(400).json({ error: 'Valid sender email address is required' });
+      }
+
+      const sender = await prisma.senderAccount.create({
+        data: {
+          email: email.trim().toLowerCase(),
+          name: name ? name.trim() : email.split('@')[0],
+          userId: req.user?.id || null,
+          isDefault: false,
+        },
+      });
+
+      return res.status(201).json(sender);
+    } catch (error: any) {
+      console.error('Add Sender Error:', error);
+      return res.status(500).json({ error: error.message || 'Failed to add sender account' });
     }
   }
 

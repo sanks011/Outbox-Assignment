@@ -8,6 +8,7 @@ router.get('/scheduled', authMiddleware, EmailController.getScheduledEmails);
 router.get('/sent', authMiddleware, EmailController.getSentEmails);
 router.get('/search', authMiddleware, EmailController.searchEmails);
 router.get('/senders', authMiddleware, EmailController.getSenders);
+router.post('/senders', authMiddleware, EmailController.addSender);
 router.get('/detail/:id', authMiddleware, EmailController.getEmailDetail);
 router.delete('/:id', authMiddleware, EmailController.cancelEmail);
 router.post('/seed', authMiddleware, EmailController.seedSampleData);

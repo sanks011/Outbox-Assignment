@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Slack, X, CheckCircle2, AlertTriangle, Send, Link, Trash2 } from 'lucide-react';
 import { apiClient } from '../api/client.js';
 import { SlackStatus } from '../types/index.js';
+import { useAuth } from '../context/AuthContext.js';
 
 interface SlackConnectModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ export const SlackConnectModal: React.FC<SlackConnectModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const { user } = useAuth();
   const [webhookUrl, setWebhookUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [testSending, setTestSending] = useState(false);
@@ -78,7 +80,8 @@ export const SlackConnectModal: React.FC<SlackConnectModalProps> = ({
     try {
       setTestSending(true);
       setMessage(null);
-      const res = await apiClient.triggerTestSlackAlert('oliver.brown@domain.io', 50);
+      const senderEmail = user?.email || 'sender@reachinbox.ai';
+      const res = await apiClient.triggerTestSlackAlert(senderEmail, 50);
       setMessage({ type: 'success', text: res.message });
     } catch (err: any) {
       setMessage({

@@ -14,13 +14,7 @@ export function authMiddleware(req: AuthenticatedRequest, res: Response, next: N
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    // For local dev convenience or demo mode, if no auth token is passed, allow with default demo user
-    req.user = {
-      id: 'demo-user-oliver',
-      email: 'oliver.brown@domain.io',
-      name: 'Oliver Brown',
-    };
-    return next();
+    return res.status(401).json({ error: 'Unauthorized: Missing or invalid authentication token' });
   }
 
   const token = authHeader.split(' ')[1];
@@ -30,12 +24,6 @@ export function authMiddleware(req: AuthenticatedRequest, res: Response, next: N
     req.user = decoded;
     next();
   } catch {
-    // If token invalid, default to demo user or 401
-    req.user = {
-      id: 'demo-user-oliver',
-      email: 'oliver.brown@domain.io',
-      name: 'Oliver Brown',
-    };
-    next();
+    return res.status(401).json({ error: 'Unauthorized: Token is expired or invalid' });
   }
 }

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.js';
+import { apiClient } from '../api/client.js';
 
 export const LoginModal: React.FC = () => {
   const { loginWithGoogle, loginWithEmail, loginDemo } = useAuth();
@@ -7,6 +8,36 @@ export const LoginModal: React.FC = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [googleClientId, setGoogleClientId] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadConfig() {
+      try {
+        const config = await apiClient.getAuthConfig();
+        if (config.googleClientId) {
+          setGoogleClientId(config.googleClientId);
+          if ((window as any).google?.accounts?.id) {
+            (window as any).google.accounts.id.initialize({
+              client_id: config.googleClientId,
+              callback: async (response: any) => {
+                try {
+                  setLoading(true);
+                  await loginWithGoogle(response.credential);
+                } catch (err: any) {
+                  setError(err.response?.data?.error || 'Google login failed');
+                } finally {
+                  setLoading(false);
+                }
+              },
+            });
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    loadConfig();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,12 +60,20 @@ export const LoginModal: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      // Fallback to Google demo persona if Google Client ID is not yet configured in .env
-      await loginWithGoogle(undefined, {
-        email: 'oliver.brown@domain.io',
-        name: 'Oliver Brown',
-        picture: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
-      });
+
+      // If Google Client ID is configured in .env, launch real Google One Tap / prompt
+      if (googleClientId && (window as any).google?.accounts?.id) {
+        (window as any).google.accounts.id.prompt((notification: any) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            // Prompt fallback
+            loginDemo();
+          }
+        });
+        return;
+      }
+
+      // If Google Client ID is not yet entered in .env, provide seamless demo login
+      await loginDemo();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Google login failed');
     } finally {

@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowLeft, Star, Archive, Trash2, ChevronDown, Paperclip, ExternalLink } from 'lucide-react';
 import { EmailJob, EmailAttachment } from '../types/index.js';
+import { useAuth } from '../context/AuthContext.js';
 
 interface EmailDetailProps {
   email: EmailJob;
@@ -9,6 +10,7 @@ interface EmailDetailProps {
 }
 
 export const EmailDetail: React.FC<EmailDetailProps> = ({ email, onBack, onDelete }) => {
+  const { user } = useAuth();
   // Parse attachments if JSON string
   let parsedAttachments: EmailAttachment[] = [];
   if (email.attachments) {
@@ -79,8 +81,8 @@ export const EmailDetail: React.FC<EmailDetailProps> = ({ email, onBack, onDelet
           )}
           <div className="w-[1px] h-4 bg-gray-200 mx-1"></div>
           <img
-            src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
-            alt="Profile"
+            src={user?.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"}
+            alt={user?.name || "Profile"}
             className="w-7 h-7 rounded-full object-cover"
           />
         </div>

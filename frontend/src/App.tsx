@@ -46,8 +46,9 @@ export const App: React.FC = () => {
         apiClient.getDashboardStats(),
       ]);
 
-      // If database is completely empty on fresh install, auto-seed sample demo data
-      if (schedRes.total === 0 && sentRes.total === 0) {
+      // If database is completely empty on very first install, seed sample demo data once
+      if (schedRes.total === 0 && sentRes.total === 0 && !localStorage.getItem('reachinbox_seeded')) {
+        localStorage.setItem('reachinbox_seeded', 'true');
         try {
           await apiClient.seedData();
           const [freshSched, freshSent] = await Promise.all([

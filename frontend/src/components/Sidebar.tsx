@@ -53,10 +53,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             />
             <div className="truncate">
               <div className="text-xs font-semibold text-gray-900 truncate">
-                {user?.name || 'Oliver Brown'}
+                {user?.name || user?.email?.split('@')[0] || 'User'}
               </div>
               <div className="text-[11px] text-gray-400 truncate">
-                {user?.email || 'oliver.brown@domain.io'}
+                {user?.email || 'user@reachinbox.ai'}
               </div>
             </div>
           </div>

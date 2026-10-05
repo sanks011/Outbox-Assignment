@@ -18,6 +18,11 @@ api.interceptors.request.use((config) => {
 
 export const apiClient = {
   // Auth
+  async getAuthConfig(): Promise<{ googleClientId: string | null; hasSlackWebhook: boolean; hasSlackOAuth: boolean }> {
+    const res = await api.get('/auth/config');
+    return res.data;
+  },
+
   async loginWithEmail(email: string, password?: string): Promise<{ token: string; user: User }> {
     const res = await api.post('/auth/login', { email, password });
     if (res.data.token) {
@@ -79,6 +84,11 @@ export const apiClient = {
 
   async getSenders(): Promise<SenderAccount[]> {
     const res = await api.get('/emails/senders');
+    return res.data;
+  },
+
+  async addSender(email: string, name?: string): Promise<SenderAccount> {
+    const res = await api.post('/emails/senders', { email, name });
     return res.data;
   },
 
