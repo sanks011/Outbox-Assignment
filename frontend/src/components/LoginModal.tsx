@@ -16,21 +16,6 @@ export const LoginModal: React.FC = () => {
         const config = await apiClient.getAuthConfig();
         if (config.googleClientId) {
           setGoogleClientId(config.googleClientId);
-          if ((window as any).google?.accounts?.id) {
-            (window as any).google.accounts.id.initialize({
-              client_id: config.googleClientId,
-              callback: async (response: any) => {
-                try {
-                  setLoading(true);
-                  await loginWithGoogle(response.credential);
-                } catch (err: any) {
-                  setError(err.response?.data?.error || 'Google login failed');
-                } finally {
-                  setLoading(false);
-                }
-              },
-            });
-          }
         }
       } catch {
         // ignore
@@ -57,20 +42,51 @@ export const LoginModal: React.FC = () => {
   };
 
   const handleGoogleClick = async () => {
+    if (!googleClientId) {
+      setError('Google OAuth Client ID is not configured in .env. Please sign in with your email and password below.');
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      // If Google Client ID is configured in .env, launch real Google One Tap / prompt
-      if (googleClientId && (window as any).google?.accounts?.id) {
-        (window as any).google.accounts.id.prompt();
-        return;
+      const google = (window as any).google;
+      if (!google?.accounts?.oauth2) {
+        throw new Error('Google Sign-In is still loading. Please try again in a few seconds.');
       }
 
-      setError('Google OAuth Client ID is not configured in .env. Please sign in with your email and password below.');
+      // Standard Google OAuth2 Popup (reliable, no FedCM abort issues)
+      const tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: googleClientId,
+        scope: 'email profile openid',
+        callback: async (tokenResponse: any) => {
+          if (tokenResponse.error) {
+            setError(tokenResponse.error_description || tokenResponse.error || 'Google login cancelled');
+            setLoading(false);
+            return;
+          }
+
+          try {
+            // Fetch Google profile using the access token
+            const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+              headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+            });
+            const userInfo = await userInfoRes.json();
+
+            // Send profile to backend to authenticate and generate session JWT
+            await loginWithGoogle(undefined, userInfo);
+          } catch (err: any) {
+            setError(err.response?.data?.error || err.message || 'Failed to authenticate with Google');
+          } finally {
+            setLoading(false);
+          }
+        },
+      });
+
+      tokenClient.requestAccessToken({ prompt: 'select_account' });
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Google login failed');
-    } finally {
+      setError(err.message || 'Google login failed');
       setLoading(false);
     }
   };
