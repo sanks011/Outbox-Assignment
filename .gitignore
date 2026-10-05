@@ -10,8 +10,11 @@ build/
 out/
 
 # Environment files
-# Keep .env.example tracked, ignore local secrets if user changes them
-# .env
+.env
+.env.*
+*.env
+backend/.env
+!.env.example
 
 # Database & SQLite/Prisma
 *.db
