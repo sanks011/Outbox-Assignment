@@ -11,7 +11,7 @@
     "db:sync": "node scripts/sync-db-provider.js",
     "prisma:generate": "node scripts/sync-db-provider.js && prisma generate",
     "prisma:migrate": "node scripts/sync-db-provider.js && prisma migrate dev",
-    "prisma:push": "node scripts/sync-db-provider.js && prisma db push"
+    "prisma:push": "node scripts/sync-db-provider.js && prisma db push --skip-generate"
   },
   "dependencies": {
     "@bull-board/api": "^6.8.0",
