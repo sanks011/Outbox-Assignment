@@ -20,6 +20,7 @@ import {
   Quote,
   Code,
   Link as LinkIcon,
+  FileText,
 } from 'lucide-react';
 import Papa from 'papaparse';
 import { apiClient } from '../api/client.js';
@@ -264,19 +265,37 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
             <input
               type="file"
               ref={attachmentInputRef}
+              multiple
               className="hidden"
               onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  setAttachments([
-                    ...attachments,
-                    {
-                      filename: file.name,
-                      size: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
-                      url: 'https://images.unsplash.com/photo-1595435934249-5df7ed86e1c0?w=600&auto=format&fit=crop&q=80',
-                    },
-                  ]);
-                }
+                const files = Array.from(e.target.files || []);
+                if (files.length === 0) return;
+
+                files.forEach((file) => {
+                  const isImg = file.type.startsWith('image/');
+                  const sizeStr =
+                    file.size >= 1024 * 1024
+                      ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+                      : `${Math.max(1, Math.round(file.size / 1024))} KB`;
+
+                  const reader = new FileReader();
+                  reader.onload = (event) => {
+                    const dataUrl = event.target?.result as string;
+                    setAttachments((prev) => [
+                      ...prev,
+                      {
+                        filename: file.name,
+                        size: sizeStr,
+                        url: dataUrl,
+                        isImage: isImg,
+                        type: file.type,
+                      },
+                    ]);
+                  };
+                  reader.readAsDataURL(file);
+                });
+
+                e.target.value = '';
               }}
             />
 
@@ -680,23 +699,57 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
           {/* Attachments Card Preview Area (Bottom of Compose) */}
           {attachments.length > 0 && (
             <div className="pt-2 space-y-2">
-              <span className="text-[11px] font-semibold text-gray-500">Attachments</span>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-gray-500">
+                  Attachments ({attachments.length})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setAttachments([])}
+                  className="text-[10px] text-red-500 hover:underline"
+                >
+                  Remove all
+                </button>
+              </div>
               <div className="flex flex-wrap gap-3">
                 {attachments.map((att, idx) => (
                   <div
                     key={idx}
-                    className="relative w-40 h-24 border border-gray-200 rounded-xl overflow-hidden group shadow-sm bg-gray-50"
+                    className="relative w-44 h-28 border border-gray-200 rounded-xl overflow-hidden group shadow-sm bg-gray-50 flex flex-col"
                   >
-                    <img src={att.url} alt={att.filename} className="w-full h-full object-cover" />
+                    {att.isImage ? (
+                      <div className="flex-1 w-full bg-gray-100 overflow-hidden">
+                        <img
+                          src={att.url}
+                          alt={att.filename}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex-1 w-full flex flex-col items-center justify-center bg-gray-100 p-2 text-gray-500">
+                        <FileText className="w-8 h-8 text-emerald-600 mb-1" />
+                        <span className="text-[10px] uppercase font-bold text-gray-400">
+                          {att.filename.split('.').pop() || 'FILE'}
+                        </span>
+                      </div>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => setAttachments(attachments.filter((_, i) => i !== idx))}
-                      className="absolute top-1 right-1 p-1 bg-black/60 hover:bg-black text-white rounded-full transition-colors opacity-0 group-hover:opacity-100"
+                      className="absolute top-1.5 right-1.5 p-1 bg-black/60 hover:bg-black text-white rounded-full transition-colors opacity-0 group-hover:opacity-100 z-10"
+                      title="Remove attachment"
                     >
                       <X className="w-3 h-3" />
                     </button>
-                    <div className="absolute bottom-0 inset-x-0 bg-white/90 p-1 text-[10px] truncate text-gray-700">
-                      {att.filename}
+
+                    <div className="bg-white/95 p-1.5 border-t border-gray-100 flex items-center justify-between">
+                      <span className="text-[11px] font-medium text-gray-800 truncate" title={att.filename}>
+                        {att.filename}
+                      </span>
+                      <span className="text-[10px] text-gray-400 shrink-0 ml-1">
+                        {att.size}
+                      </span>
                     </div>
                   </div>
                 ))}
