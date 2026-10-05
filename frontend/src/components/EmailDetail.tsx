@@ -1,7 +1,8 @@
-import React from 'react';
-import { ArrowLeft, Star, Archive, Trash2, ChevronDown, Paperclip, ExternalLink } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowLeft, Star, Archive, Trash2, ChevronDown, Paperclip, ExternalLink, FileText, Eye } from 'lucide-react';
 import { EmailJob, EmailAttachment } from '../types/index.js';
 import { useAuth } from '../context/AuthContext.js';
+import { AttachmentPreviewModal } from './AttachmentPreviewModal.js';
 
 interface EmailDetailProps {
   email: EmailJob;
@@ -11,6 +12,8 @@ interface EmailDetailProps {
 
 export const EmailDetail: React.FC<EmailDetailProps> = ({ email, onBack, onDelete }) => {
   const { user } = useAuth();
+  const [previewAttachment, setPreviewAttachment] = useState<any | null>(null);
+
   // Parse attachments if JSON string
   let parsedAttachments: EmailAttachment[] = [];
   if (email.attachments) {
@@ -139,30 +142,62 @@ export const EmailDetail: React.FC<EmailDetailProps> = ({ email, onBack, onDelet
             </div>
 
             <div className="flex flex-wrap gap-4">
-              {parsedAttachments.map((att, idx) => (
-                <div
-                  key={idx}
-                  className="w-48 bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow cursor-pointer group"
-                >
-                  <div className="h-28 bg-gray-100 overflow-hidden relative">
-                    <img
-                      src={att.url}
-                      alt={att.filename}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                    />
-                  </div>
-                  <div className="p-2.5">
-                    <div className="text-xs font-medium text-gray-800 truncate" title={att.filename}>
-                      {att.filename}
+              {parsedAttachments.map((att, idx) => {
+                const isImage =
+                  (att as any).isImage ||
+                  (att as any).type?.startsWith('image/') ||
+                  /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(att.filename);
+
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => setPreviewAttachment(att)}
+                    className="w-48 bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer group flex flex-col"
+                    title="Click to preview file"
+                  >
+                    <div className="h-28 bg-gray-100 overflow-hidden relative">
+                      {isImage ? (
+                        <img
+                          src={att.url}
+                          alt={att.filename}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-gray-100 p-2 text-gray-500 group-hover:bg-emerald-50/50 transition-colors">
+                          <FileText className="w-8 h-8 text-emerald-600 mb-1 group-hover:scale-110 transition-transform" />
+                          <span className="text-[10px] uppercase font-bold text-gray-400 group-hover:text-emerald-700">
+                            {att.filename.split('.').pop() || 'FILE'}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Hover Overlay with Preview Eye Icon */}
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white">
+                        <Eye className="w-4 h-4" />
+                        <span className="text-[11px] font-medium">Preview</span>
+                      </div>
                     </div>
-                    <div className="text-[11px] text-gray-400">{att.size}</div>
+
+                    <div className="p-2.5 bg-white border-t border-gray-100 flex items-center justify-between">
+                      <div className="text-xs font-medium text-gray-800 truncate" title={att.filename}>
+                        {att.filename}
+                      </div>
+                      <div className="text-[11px] text-gray-400 shrink-0 ml-1">{att.size}</div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
       </div>
+
+      {/* Attachment Full-Screen Preview Lightbox */}
+      <AttachmentPreviewModal
+        isOpen={!!previewAttachment}
+        onClose={() => setPreviewAttachment(null)}
+        attachment={previewAttachment}
+      />
     </div>
   );
 };

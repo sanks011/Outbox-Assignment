@@ -21,11 +21,13 @@ import {
   Code,
   Link as LinkIcon,
   FileText,
+  Eye,
 } from 'lucide-react';
 import Papa from 'papaparse';
 import { apiClient } from '../api/client.js';
 import { SenderAccount } from '../types/index.js';
 import { SendLaterPopover } from './SendLaterPopover.js';
+import { AttachmentPreviewModal } from './AttachmentPreviewModal.js';
 
 import { useAuth } from '../context/AuthContext.js';
 
@@ -69,6 +71,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
 
   // Attachments
   const [attachments, setAttachments] = useState<any[]>([]);
+  const [previewAttachment, setPreviewAttachment] = useState<any | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -715,28 +718,43 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 {attachments.map((att, idx) => (
                   <div
                     key={idx}
-                    className="relative w-44 h-28 border border-gray-200 rounded-xl overflow-hidden group shadow-sm bg-gray-50 flex flex-col"
+                    onClick={() => setPreviewAttachment(att)}
+                    className="relative w-44 h-28 border border-gray-200 rounded-xl overflow-hidden group shadow-sm bg-gray-50 flex flex-col cursor-pointer hover:border-emerald-400 hover:shadow-md transition-all"
+                    title="Click to preview file"
                   >
                     {att.isImage ? (
-                      <div className="flex-1 w-full bg-gray-100 overflow-hidden">
+                      <div className="flex-1 w-full bg-gray-100 overflow-hidden relative">
                         <img
                           src={att.url}
                           alt={att.filename}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                         />
+                        {/* Hover Overlay with Preview Eye Icon */}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white">
+                          <Eye className="w-4 h-4" />
+                          <span className="text-[11px] font-medium">Preview</span>
+                        </div>
                       </div>
                     ) : (
-                      <div className="flex-1 w-full flex flex-col items-center justify-center bg-gray-100 p-2 text-gray-500">
-                        <FileText className="w-8 h-8 text-emerald-600 mb-1" />
-                        <span className="text-[10px] uppercase font-bold text-gray-400">
+                      <div className="flex-1 w-full flex flex-col items-center justify-center bg-gray-100 p-2 text-gray-500 relative group-hover:bg-emerald-50/50 transition-colors">
+                        <FileText className="w-8 h-8 text-emerald-600 mb-1 group-hover:scale-110 transition-transform" />
+                        <span className="text-[10px] uppercase font-bold text-gray-400 group-hover:text-emerald-700">
                           {att.filename.split('.').pop() || 'FILE'}
                         </span>
+                        {/* Hover Overlay with Preview Eye Icon */}
+                        <div className="absolute inset-0 bg-emerald-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white rounded-t-xl">
+                          <Eye className="w-4 h-4" />
+                          <span className="text-[11px] font-medium">Preview</span>
+                        </div>
                       </div>
                     )}
 
                     <button
                       type="button"
-                      onClick={() => setAttachments(attachments.filter((_, i) => i !== idx))}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAttachments(attachments.filter((_, i) => i !== idx));
+                      }}
                       className="absolute top-1.5 right-1.5 p-1 bg-black/60 hover:bg-black text-white rounded-full transition-colors opacity-0 group-hover:opacity-100 z-10"
                       title="Remove attachment"
                     >
@@ -758,6 +776,13 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* Attachment Full-Screen Preview Lightbox */}
+      <AttachmentPreviewModal
+        isOpen={!!previewAttachment}
+        onClose={() => setPreviewAttachment(null)}
+        attachment={previewAttachment}
+      />
     </div>
   );
 };

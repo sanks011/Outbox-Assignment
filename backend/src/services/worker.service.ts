@@ -125,13 +125,34 @@ export class WorkerService {
           data: { status: 'processing' },
         });
 
+        // Step 4: Retrieve attachment payload if any and send via Ethereal SMTP
+        const currentJob = await prisma.emailJob.findUnique({
+          where: { id: jobId },
+          select: { attachments: true },
+        });
+
+        let mailAttachments: Array<{ filename: string; path?: string; content?: string }> | undefined = undefined;
+        if (currentJob?.attachments) {
+          try {
+            const parsed = JSON.parse(currentJob.attachments);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              mailAttachments = parsed.map((a: any) => ({
+                filename: a.filename,
+                path: a.url, // Data URI or URL
+              }));
+            }
+          } catch (e) {
+            console.warn(`[Worker] Failed to parse attachments for job ${jobId}:`, e);
+          }
+        }
+
         try {
-          // Step 4: Send Email via Ethereal SMTP
           const sendResult = await EmailService.sendEmail({
             from,
             to,
             subject,
             body,
+            attachments: mailAttachments,
           });
 
           const sentAt = new Date();
