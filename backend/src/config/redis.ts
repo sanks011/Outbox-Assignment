@@ -1,4 +1,4 @@
-import Redis, { RedisOptions } from 'ioredis';
+import { Redis, RedisOptions } from 'ioredis';
 import { config } from './env.js';
 
 export const redisOptions: RedisOptions = {
@@ -7,7 +7,7 @@ export const redisOptions: RedisOptions = {
   password: config.redis.password || undefined,
   maxRetriesPerRequest: null, // Required by BullMQ
   enableReadyCheck: false,
-  retryStrategy(times) {
+  retryStrategy(times: number) {
     const delay = Math.min(times * 100, 3000);
     return delay;
   },
@@ -19,6 +19,6 @@ redisClient.on('connect', () => {
   console.log('✅ Connected to Redis successfully');
 });
 
-redisClient.on('error', (err) => {
+redisClient.on('error', (err: any) => {
   console.warn('⚠️ Redis Connection Warning:', err.message);
 });
