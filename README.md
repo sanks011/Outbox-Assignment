@@ -36,12 +36,12 @@ A production-grade, distributed email scheduler service and dashboard built with
 - **Live BullMQ Queue Monitor**: Integrated `@bull-board/express` dashboard accessible at `/admin/queues`.
 
 ### 🎨 Frontend (Figma-Matched)
-- **Login Screen**: Centered card with Google OAuth pill button (`#E8F5E9`), divider, Email ID and Password inputs, vibrant green submit button (`#00A854`), and one-click demo persona login.
+- **Login Screen**: Centered card with Google OAuth pill button (`#E8F5E9`), Google Identity Services popup token flow (avoiding FedCM issues), divider, Email ID and Password inputs, and vibrant green submit button (`#00A854`).
 - **Dashboard Sidebar**: ONB logo branding, Oliver Brown profile badge with dropdown, `+ Compose` green outline button, `CORE` navigation (Scheduled with badge counter, Sent with badge counter), BullMQ Live Dashboard link, and Slack Integration modal trigger.
 - **Header & Search Bar**: Pill search bar with instant Elasticsearch query results, filter button, and refresh button.
 - **Email Lists**: Orange pill badges for scheduled times (`Tue 9:15:12 AM`) and gray pill badges for sent emails (`Sent`) with subject and preview snippets.
-- **Email Detail View**: Detailed view with back navigation, sender info (`Amanda Clark <sender@example.com>`), yellow callout highlight box, and attachment cards (`Tennis_Coach_Profile.png 1.2 MB`).
-- **Compose Modal**: Sender selection dropdown, recipient input with CSV/TXT lead upload parser that extracts emails and displays pills + `+4` counter chip, inline throttle delay & hourly limit controls, rich text WYSIWYG editor, attachment previews, and **Send Later** popover with quick presets.
+- **Email Detail View**: Detailed view with back navigation, sender info (`Amanda Clark <sender@example.com>`), yellow callout highlight box, attachment preview cards, and full-screen preview lightbox for images and documents.
+- **Compose Modal**: Dynamic sender dropdown with "+ Add another sender email" modal creator, recipient input with CSV/TXT lead upload parser that extracts emails and displays pills + `+4` counter chip, inline throttle delay & hourly limit controls, rich text WYSIWYG editor, dynamic file attachment thumbnails with full-screen lightbox preview (`AttachmentPreviewModal`), and **Send Later** popover with quick presets.
 
 ---
 
@@ -111,15 +111,17 @@ outbox-assignment/
 ├── backend/
 │   ├── prisma/
 │   │   └── schema.prisma           # Prisma schema (User, EmailJob, SlackIntegration, SenderAccount)
+│   ├── scripts/
+│   │   └── sync-db-provider.js     # Prisma database provider dynamic synchronizer
 │   ├── src/
 │   │   ├── config/
 │   │   │   ├── db.ts               # Prisma PostgreSQL client singleton
-│   │   │   ├── env.ts              # Unified environment loader
+│   │   │   ├── env.ts              # Unified root .env loader across all working directories
 │   │   │   ├── redis.ts            # Redis connection options for BullMQ & counters
 │   │   │   └── elasticsearch.ts    # Elasticsearch client & index bootstrapper
 │   │   ├── controllers/
-│   │   │   ├── auth.controller.ts  # Google OAuth & demo persona authentication
-│   │   │   ├── email.controller.ts # Scheduled, sent, detail, cancel, and seed data
+│   │   │   ├── auth.controller.ts  # Google OAuth (popup flow) & local authentication
+│   │   │   ├── email.controller.ts # Scheduled, sent, detail, cancel, dynamic senders, and seed data
 │   │   │   ├── scheduler.controller.ts # Bulk CSV & single scheduling with delay logic
 │   │   │   ├── slack.controller.ts # Webhook, OAuth & live test alert endpoints
 │   │   │   └── dashboard.controller.ts # Metrics for queue & system status
@@ -147,10 +149,11 @@ outbox-assignment/
 │   │   ├── components/
 │   │   │   ├── Sidebar.tsx         # Figma ONB sidebar with CORE navigation & counters
 │   │   │   ├── Header.tsx          # Pill search bar with Elasticsearch integration
-│   │   │   ├── LoginModal.tsx      # Figma Screen 1 login card
+│   │   │   ├── LoginModal.tsx      # Figma Screen 1 login card (Google OAuth + email/pwd)
 │   │   │   ├── EmailList.tsx       # Figma Screen 2 scheduled & sent tables
 │   │   │   ├── EmailDetail.tsx     # Figma Screen 3 detail view with attachments
 │   │   │   ├── ComposeModal.tsx    # Figma Screen 4 & 5 compose with CSV parse & editor
+│   │   │   ├── AttachmentPreviewModal.tsx # Full-screen lightbox preview for images & documents
 │   │   │   ├── SendLaterPopover.tsx# Figma Screen 4 Send Later popover & presets
 │   │   │   └── SlackConnectModal.tsx# Slack OAuth & Webhook connection modal
 │   │   ├── context/AuthContext.tsx # Authentication provider
@@ -258,10 +261,11 @@ The dashboard matches the Figma designs down to component structure and styling:
 1. **Screen 1 (Login)**:
    - Centered card with title "Login".
    - "Login with Google" pill button (`#E8F5E9`) with official multi-colored Google SVG logo.
+   - Built on Google Identity Services popup OAuth2 client (`google.accounts.oauth2.initTokenClient`) for smooth authentication across all modern browsers without FedCM AbortErrors.
    - Divider with text `or sign up through email`.
    - Light gray input fields (`#F4F6F5`) for `Email ID` and `Password`.
    - Vibrant green `Login` button (`#00A854`).
-   - One-click demo persona login as **Oliver Brown** for instant testing.
+   - Clean, production authentication flow with secure session storage.
 
 2. **Screen 2 (Homepage - Scheduled & Sent)**:
    - Left sidebar with stylized **ONB** logo.
@@ -277,12 +281,13 @@ The dashboard matches the Figma designs down to component structure and styling:
    - Star, Archive, and Delete header actions.
    - Sender avatar with initial "A", `Amanda Clark <sender@example.com>`, `to me`, and timestamp.
    - Rich email body with yellow callout block (`#FEF9C3` with `#EAB308` border) for exclusive coaching offers.
-   - Attachment preview cards with image thumbnails and metadata (`Tennis_Coach_Profile.png 1.2 MB`).
+   - Attachment preview cards supporting both image thumbnails and document types (PDF, CSV, TXT, DOCX) with hover preview overlays and full-screen lightbox preview modals (`AttachmentPreviewModal`).
 
 4. **Screen 4 & 5 (Compose New Email)**:
-   - Multi-sender dropdown (`From: oliver.brown@domain.io ▾`).
+   - Dynamic multi-sender dropdown with inline `+ Add another sender email` creator modal.
    - Recipient line with `Upload List` button: parses CSV or TXT lead lists using PapaParse, rendering green pills for emails and a `+4` count chip.
    - Inline throttle delay (`Delay between 2 emails [ 02 ] sec`) and rate limit (`Hourly Limit [ 50 ] emails/hr`).
+   - Real-time file attachment reader: renders live thumbnails for uploaded images and clean document badges for non-image files, with click-to-preview lightbox modal and delete controls.
    - "Send Later" Popover with quick presets (`Tomorrow`, `Tomorrow, 10:00 AM`, `Tomorrow, 11:00 AM`, `Tomorrow, 3:00 PM`), calendar date-time picker, and `Cancel` / `Done` buttons.
    - Full WYSIWYG editor toolbar: Undo, Redo, Format, Bold, Italic, Underline, Strikethrough, Alignments, Lists, Quotes, Code block, and Links.
 
@@ -377,9 +382,9 @@ Action Taken:   Email to lead@company.com (Job: email-xxx) has been
 ## 📡 API Reference
 
 ### Authentication
-- `POST /api/auth/google`: Verify Google ID token and login.
+- `GET /api/auth/config`: Retrieve public Google OAuth client configuration.
+- `POST /api/auth/google`: Verify Google OAuth access token and log in user.
 - `POST /api/auth/login`: Email & password login.
-- `POST /api/auth/demo`: Instant login as Oliver Brown persona.
 - `GET /api/auth/me`: Retrieve authenticated user profile.
 
 ### Scheduler
@@ -392,7 +397,10 @@ Action Taken:   Email to lead@company.com (Job: email-xxx) has been
     "body": "<p>Hello lead,</p>",
     "scheduledTime": "2025-05-10T10:00:00Z",
     "delayBetweenEmails": 2,
-    "hourlyLimit": 50
+    "hourlyLimit": 50,
+    "attachments": [
+      { "filename": "Document.pdf", "size": "1.2 MB", "url": "data:application/pdf;base64,..." }
+    ]
   }
   ```
 
@@ -403,6 +411,7 @@ Action Taken:   Email to lead@company.com (Job: email-xxx) has been
 - `GET /api/emails/search?q=...&status=...`: Query emails via Elasticsearch.
 - `DELETE /api/emails/:id`: Cancel a scheduled email before delivery.
 - `GET /api/emails/senders`: Retrieve available sender accounts.
+- `POST /api/emails/senders`: Create a new custom sender account.
 - `POST /api/emails/seed`: Seed sample demo emails matching Figma screenshots.
 
 ### Slack
@@ -422,11 +431,11 @@ Action Taken:   Email to lead@company.com (Job: email-xxx) has been
 
 | Scenario | Steps to Verify | Expected Result |
 |---|---|---|
-| **1. Login & Demo Persona** | Open `http://localhost:5173`, click "One-Click Demo Login as Oliver Brown" | Redirects to dashboard showing Oliver Brown profile and Figma navigation |
-| **2. Schedule an Email** | Click `+ Compose`, enter recipient, subject, body, pick a time in "Send Later" | Job appears in Scheduled list with orange badge; appears in BullMQ delayed queue |
-| **3. Bulk CSV Upload** | In Compose modal, click `Upload List`, select a CSV of leads | Recipient pills render with `+4` count chip; staggered delays applied automatically |
-| **4. Ethereal Email Delivery** | Schedule an email for immediate send or wait for scheduled time | Email delivers via Ethereal SMTP; preview link appears in Sent tab and detail view |
-| **5. Server Restart Persistence** | Schedule an email for +5 minutes, kill the backend server (`Ctrl+C`), restart it | Job remains scheduled and delivers at the exact scheduled time without duplication |
-| **6. Rate Limiting & Slack Alert** | Connect Slack webhook via sidebar modal, set hourly limit to 2, schedule 5 emails | First 2 send; remaining 3 reschedule to next hour; live Slack alert message received |
+| **1. Authentication** | Open `http://localhost:5173`, click "Login with Google" popup or enter email/password | Seamlessly logs in and redirects to the Figma dashboard with active user session |
+| **2. Schedule an Email with Attachments** | Click `+ Compose`, enter recipient, subject, attach image/PDF, click preview, and pick a time in "Send Later" | Attachment renders live thumbnail; clicking opens full-screen lightbox preview; email queues in BullMQ |
+| **3. Bulk CSV Upload & Delay Stagger** | In Compose modal, click `Upload List`, select a CSV of leads | Recipient pills render with `+4` count chip; staggered inter-email delays applied automatically |
+| **4. Ethereal Email Delivery** | Schedule an email for immediate send or wait for scheduled time | Email delivers via Ethereal SMTP with attachments; preview link appears in Sent tab and detail view |
+| **5. Server Restart Persistence** | Schedule an email for +5 minutes, kill the backend server (`Ctrl+C`), restart it | Job remains scheduled in Redis/DB and delivers at the exact scheduled time without duplication |
+| **6. Rate Limiting & Slack Alert** | Connect Slack webhook via sidebar modal, set hourly limit to 2, schedule 5 emails | First 2 send; remaining 3 reschedule to next hour; live Block Kit Slack alert message received |
 | **7. Elasticsearch Search** | Type any keyword in the top search bar | Instant fuzzy match results retrieved from Elasticsearch index |
 | **8. BullMQ Live Dashboard** | Open `http://localhost:5000/admin/queues` | View active, delayed, waiting, and completed jobs in real-time UI |
