@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext.js';
 import { apiClient } from '../api/client.js';
 
@@ -8,8 +8,13 @@ export const LoginModal: React.FC = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [googleClientId, setGoogleClientId] = useState<string | null>(null);
+  const [googleClientId, setGoogleClientId] = useState<string | null>(
+    import.meta.env.VITE_GOOGLE_CLIENT_ID || null
+  );
+  const [popupBlocked, setPopupBlocked] = useState(false);
+  const tokenClientRef = useRef<any>(null);
 
+  // 1. Fetch Google Client ID from backend if not in Vite build env
   useEffect(() => {
     async function loadConfig() {
       try {
@@ -21,8 +26,83 @@ export const LoginModal: React.FC = () => {
         // ignore
       }
     }
-    loadConfig();
-  }, []);
+    if (!googleClientId) {
+      loadConfig();
+    }
+  }, [googleClientId]);
+
+  // 2. Handle Google OAuth redirect return (when popup was blocked or in mobile browsers)
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash && hash.includes('access_token=')) {
+      const params = new URLSearchParams(hash.substring(1));
+      const accessToken = params.get('access_token');
+      if (accessToken) {
+        window.history.replaceState(null, '', window.location.pathname);
+        setLoading(true);
+        fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+          .then((res) => res.json())
+          .then(async (userInfo) => {
+            await loginWithGoogle(undefined, userInfo);
+          })
+          .catch((err) => {
+            setError(err.message || 'Failed to authenticate with Google');
+          })
+          .finally(() => {
+            setLoading(false);
+          });
+      }
+    }
+  }, [loginWithGoogle]);
+
+  // 3. Pre-initialize Google Token Client so click event remains 100% synchronous (bypassing popup blockers)
+  useEffect(() => {
+    if (!googleClientId) return;
+
+    const interval = setInterval(() => {
+      const google = (window as any).google;
+      if (google?.accounts?.oauth2) {
+        try {
+          tokenClientRef.current = google.accounts.oauth2.initTokenClient({
+            client_id: googleClientId,
+            scope: 'email profile openid',
+            callback: async (tokenResponse: any) => {
+              if (tokenResponse.error) {
+                setError(tokenResponse.error_description || tokenResponse.error || 'Google login cancelled');
+                setLoading(false);
+                return;
+              }
+
+              try {
+                const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                  headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+                });
+                const userInfo = await userInfoRes.json();
+                await loginWithGoogle(undefined, userInfo);
+              } catch (err: any) {
+                setError(err.response?.data?.error || err.message || 'Failed to authenticate with Google');
+              } finally {
+                setLoading(false);
+              }
+            },
+            error_callback: (err: any) => {
+              console.warn('Google Identity Services popup notice:', err);
+              setPopupBlocked(true);
+              setLoading(false);
+              setError('Popup was blocked by your browser. Click the button below to sign in directly.');
+            },
+          });
+          clearInterval(interval);
+        } catch (e) {
+          console.warn('Failed to initialize Google token client:', e);
+        }
+      }
+    }, 200);
+
+    return () => clearInterval(interval);
+  }, [googleClientId, loginWithGoogle]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,54 +121,42 @@ export const LoginModal: React.FC = () => {
     }
   };
 
-  const handleGoogleClick = async () => {
+  // Direct synchronous popup trigger (uninterrupted user gesture)
+  const handleGoogleClick = () => {
     if (!googleClientId) {
-      setError('Google OAuth Client ID is not configured in .env. Please sign in with your email and password below.');
+      setError('Google OAuth Client ID is not configured. Please sign in with email and password below.');
       return;
     }
 
-    try {
-      setLoading(true);
-      setError(null);
+    setLoading(true);
+    setError(null);
+    setPopupBlocked(false);
 
-      const google = (window as any).google;
-      if (!google?.accounts?.oauth2) {
-        throw new Error('Google Sign-In is still loading. Please try again in a few seconds.');
+    if (tokenClientRef.current) {
+      try {
+        tokenClientRef.current.requestAccessToken({ prompt: 'select_account' });
+      } catch (err: any) {
+        console.warn('Popup request error:', err);
+        setPopupBlocked(true);
+        setLoading(false);
+        setError('Popup was blocked by your browser. Use direct sign-in below.');
       }
-
-      // Standard Google OAuth2 Popup (reliable, no FedCM abort issues)
-      const tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: googleClientId,
-        scope: 'email profile openid',
-        callback: async (tokenResponse: any) => {
-          if (tokenResponse.error) {
-            setError(tokenResponse.error_description || tokenResponse.error || 'Google login cancelled');
-            setLoading(false);
-            return;
-          }
-
-          try {
-            // Fetch Google profile using the access token
-            const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-              headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
-            });
-            const userInfo = await userInfoRes.json();
-
-            // Send profile to backend to authenticate and generate session JWT
-            await loginWithGoogle(undefined, userInfo);
-          } catch (err: any) {
-            setError(err.response?.data?.error || err.message || 'Failed to authenticate with Google');
-          } finally {
-            setLoading(false);
-          }
-        },
-      });
-
-      tokenClient.requestAccessToken({ prompt: 'select_account' });
-    } catch (err: any) {
-      setError(err.message || 'Google login failed');
-      setLoading(false);
+    } else {
+      // Direct redirect fallback if GIS script not ready
+      handleGoogleRedirect();
     }
+  };
+
+  // Direct redirect fallback (100% immune to popup blockers)
+  const handleGoogleRedirect = () => {
+    if (!googleClientId) return;
+    const origin = window.location.origin;
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
+      googleClientId
+    )}&redirect_uri=${encodeURIComponent(origin)}&response_type=token&scope=${encodeURIComponent(
+      'email profile openid'
+    )}&prompt=select_account`;
+    window.location.href = authUrl;
   };
 
   return (
@@ -102,7 +170,19 @@ export const LoginModal: React.FC = () => {
 
         {error && (
           <div className="w-full mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg text-center">
-            {error}
+            <p>{error}</p>
+            {popupBlocked && (
+              <div className="mt-2.5">
+                <button
+                  type="button"
+                  onClick={handleGoogleRedirect}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium text-xs shadow-sm transition-colors inline-flex items-center gap-1.5"
+                >
+                  <span>Continue with Google (Direct)</span>
+                  <span>→</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 
