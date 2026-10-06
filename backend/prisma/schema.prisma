@@ -18,7 +18,7 @@ model User {
   emailJobs        EmailJob[]
   slackIntegration SlackIntegration?
   createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  updatedAt        DateTime           @default(now()) @updatedAt
 }
 
 model SenderAccount {
@@ -29,7 +29,7 @@ model SenderAccount {
   userId    String?
   user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 model EmailJob {
@@ -52,7 +52,7 @@ model EmailJob {
   retryCount   Int       @default(0)
   etherealUrl  String?
   createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  updatedAt    DateTime  @default(now()) @updatedAt
 
   @@index([status])
   @@index([scheduledFor])
@@ -69,5 +69,5 @@ model SlackIntegration {
   teamName    String?
   isConnected Boolean  @default(false)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime @default(now()) @updatedAt
 }
